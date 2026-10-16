@@ -54,11 +54,13 @@ List the actions your widget registers with `widgetHandler:AddAction` under `key
 ```json
 "keybindings": [
   { "action": "gui_example_toggle", "defaultKeysets": ["Alt+sc_t"] },
-  { "action": "gui_example_select", "alwaysModifier": "any", "defaultKeysets": ["sc_g"] }
+  { "action": "gui_example_select", "alwaysModifier": "any", "defaultKeysets": ["sc_g"] },
+  { "action": "gui_example_refresh", "defaultKeysets": ["F5"] },
+  { "action": "gui_example_pin", "defaultKeysets": ["Alt+sc_p"], "icon": "duplicate.png" }
 ]
 ```
 
-Each action is labelled by its command. A player gets each default key once, and one they remove stays removed. `alwaysModifier` (`any` or `shift`) and `icon` are optional.
+Each action is labelled by its command. A player gets each default key once, and one they remove stays removed. A `sc_` keyset binds the physical key regardless of layout; one without it, like `F5` above, binds the keycode a layout produces, which is what most players expect for keys that already carry a fixed meaning. `alwaysModifier` (`any` or `shift`) and `icon` are optional; `icon` is a path to an image relative to the widget directory, shown next to the action in the keybind editor. The example above ships its own copy of `LuaUI/Images/keybinds/duplicate.png`, a built-in icon confirmed to render correctly in the keybind editor.
 
 ## Verify
 
