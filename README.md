@@ -45,7 +45,7 @@ Your `manifest.json` must include the following fields:
 }
 ```
 
-The `last_updated` field is an ISO 8601 timestamp used to sort widgets by recency. Update it whenever you publish a new version.
+The `last_updated` field is an ISO 8601 timestamp used to sort widgets by recency. Update it whenever you publish a new version. If your changes are a big change in functionality, update it to today, for smaller updates and bugfixes increase it by one second. It will still trigger the update mechanism but not affect the sorting of the overview.
 
 ### Keybind actions (optional)
 
