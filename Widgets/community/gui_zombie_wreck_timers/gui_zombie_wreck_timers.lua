@@ -50,6 +50,9 @@ local glDepthTest  = gl.DepthTest
 local glColor      = gl.Color
 
 local floor = math.floor
+local ceil = math.ceil
+local max = math.max
+local min = math.min
 local sin   = math.sin
 local abs   = math.abs
 local format = string.format
@@ -57,9 +60,7 @@ local format = string.format
 local tracked = {}
 local trackedCount = 0
 
--- Game state panel: a top bar style element fed by the game rules params the zombie gadget publishes.
--- Basic shows bars for how fast wrecks rise and how fast zombie labs build, Advanced adds the tech
--- estimate and the numbers. Ctrl + left drag moves it.
+-- Game state panel, fed by the game rules params the zombie gadget publishes
 local TECH_LEVEL_PARAM = "zombie_tech_level"
 local REZ_SPEED_PARAM = "zombie_rez_power_speed"
 local LAB_MULTIPLIER_PARAM = "zombie_factory_buildpower_multiplier"
@@ -94,6 +95,12 @@ local PANEL_BAR_HEIGHT_FRAC = 0.13
 local PANEL_FONT_FRAC = { [2] = 0.28, [3] = 0.23 } -- by row count
 local PANEL_ROW_OFFSETS = { [2] = { 0.22, -0.22 }, [3] = { 0.3, 0, -0.3 } } -- in element heights from the center
 local PANEL_FILL_SPEED = 4 -- bar fill eases toward its target at this rate per second
+local PANEL_SKEW_SIDE_PAD_FRAC = 0.7 -- the skewed bottom cut eats into the sides, so pad them by this much of it
+local PANEL_CORNER_FRAC = 0.16
+local PANEL_TEXT_BASELINE_FRAC = 0.36 -- font:Print draws from the baseline, this centers the text vertically
+local PANEL_FALLBACK_HEIGHT = 34 -- when there is no top bar to size against, at 1080p
+local PANEL_FALLBACK_X_FRAC = 0.8
+local REFERENCE_SCREEN_HEIGHT = 1080
 -- bar color ramps from light to deep purple as it fills, the same ladder as the ramp indicator
 local BAR_COLOR_RAMP = {
 	{ 0.86, 0.74, 1.00 },
@@ -258,9 +265,9 @@ end
 
 local function readRespawnDelayClamps()
 	for _, unitDef in pairs(UnitDefs) do
-		local customParams = unitDef.customParams
-		respawnDelayMin = tonumber(customParams[RESPAWN_DELAY_MIN_PARAM]) or respawnDelayMin
-		respawnDelayMax = tonumber(customParams[RESPAWN_DELAY_MAX_PARAM]) or respawnDelayMax
+		local params = unitDef.customParams
+		respawnDelayMin = tonumber(params[RESPAWN_DELAY_MIN_PARAM]) or respawnDelayMin
+		respawnDelayMax = tonumber(params[RESPAWN_DELAY_MAX_PARAM]) or respawnDelayMax
 	end
 end
 
@@ -297,9 +304,9 @@ local function updatePanel()
 		end
 		panel.x = floor(baseX + PANEL_ANCHOR_MARGIN)
 	else
-		s = floor(34 * math.max(0.7, vsy / 1080))
+		s = floor(PANEL_FALLBACK_HEIGHT * max(0.7, vsy / REFERENCE_SCREEN_HEIGHT))
 		panel.y = vsy - s - 4
-		panel.x = floor(vsx * 0.8)
+		panel.x = floor(vsx * PANEL_FALLBACK_X_FRAC)
 	end
 	panel.h = s
 
@@ -307,10 +314,10 @@ local function updatePanel()
 	panel.skew = (skewConfig and skewConfig.useSkew)
 			and { blx = s * skewConfig.skewTan, brx = -(s * skewConfig.skewTan) }
 		or nil
-	local sidePad = panel.skew and floor(s * skewConfig.skewTan * 0.7) or 0
+	local sidePad = panel.skew and floor(s * skewConfig.skewTan * PANEL_SKEW_SIDE_PAD_FRAC) or 0
 	panel.rows = visibleRows()
 	local rowCount = #panel.rows
-	panel.pad = math.max(3, floor(s * PANEL_PAD_FRAC)) + sidePad
+	panel.pad = max(3, floor(s * PANEL_PAD_FRAC)) + sidePad
 	panel.gap = floor(s * PANEL_GAP_FRAC)
 	panel.icon = floor(s * PANEL_ICON_FRAC)
 	panel.font = s * (PANEL_FONT_FRAC[rowCount] or PANEL_FONT_FRAC[3])
@@ -319,22 +326,22 @@ local function updatePanel()
 	panel.valueWidth = 0
 	for i = 1, rowCount do
 		local key = panel.rows[i]
-		panel.labelWidth = math.max(panel.labelWidth, math.ceil(panelTextWidth(PANEL_ROWS[key].label, panel.font)))
+		panel.labelWidth = max(panel.labelWidth, ceil(panelTextWidth(PANEL_ROWS[key].label, panel.font)))
 		if isAdvanced() then
-			local sampleWidth = math.ceil(panelTextWidth(PANEL_VALUE_SAMPLES[key], panel.font))
-			panel.valueWidth = math.max(panel.valueWidth, sampleWidth)
+			local sampleWidth = ceil(panelTextWidth(PANEL_VALUE_SAMPLES[key], panel.font))
+			panel.valueWidth = max(panel.valueWidth, sampleWidth)
 		end
 	end
 	panel.barWidth = floor(s * PANEL_BAR_WIDTH_FRAC)
-	panel.barHeight = math.max(2, floor(s * PANEL_BAR_HEIGHT_FRAC))
+	panel.barHeight = max(2, floor(s * PANEL_BAR_HEIGHT_FRAC))
 	panel.w = panel.pad + panel.icon + panel.gap + panel.labelWidth + panel.gap + panel.barWidth + panel.pad
 	if isAdvanced() then
 		panel.w = panel.w + panel.gap + panel.valueWidth
 	end
 
 	if panelUserPos then
-		panel.x = floor(math.max(0, math.min(panelUserPos[1] * vsx, vsx - panel.w)))
-		panel.y = floor(math.max(0, math.min(panelUserPos[2] * vsy, vsy - panel.h)))
+		panel.x = floor(max(0, min(panelUserPos[1] * vsx, vsx - panel.w)))
+		panel.y = floor(max(0, min(panelUserPos[2] * vsy, vsy - panel.h)))
 	end
 end
 
@@ -356,7 +363,7 @@ local function drawPanelElement()
 	if flowDraw and flowDraw.Element then
 		flowDraw.Element(x1, y1, x2, y2, 1, 1, 1, 1, 1, 1, 1, 1, nil, nil, nil, nil, nil, panel.skew)
 	elseif flowDraw and flowDraw.RectRound then
-		local corner = floor(panel.h * 0.16)
+		local corner = floor(panel.h * PANEL_CORNER_FRAC)
 		flowDraw.RectRound(x1, y1, x2, y2, corner, 1, 1, 1, 1, { 0, 0, 0, 0.62 }, { 0.14, 0.14, 0.14, 0.62 })
 	else
 		glColor(0, 0, 0, 0.55)
@@ -370,7 +377,7 @@ local function drawPanelText(text, x, y, fontSize)
 		font:Begin()
 		font:SetTextColor(0.9, 0.9, 0.9, 0.95)
 		font:SetOutlineColor(0, 0, 0, 1)
-		font:Print(text, x, y - fontSize * 0.36, fontSize, "o")
+		font:Print(text, x, y - fontSize * PANEL_TEXT_BASELINE_FRAC, fontSize, "o")
 		font:End()
 	else
 		glColor(0.9, 0.9, 0.9, 0.95)
@@ -380,9 +387,9 @@ end
 
 local function rampColor(fill)
 	local steps = #BAR_COLOR_RAMP
-	local position = 1 + math.max(0, math.min(1, fill)) * (steps - 1)
+	local position = 1 + max(0, min(1, fill)) * (steps - 1)
 	local lower = BAR_COLOR_RAMP[floor(position)]
-	local upper = BAR_COLOR_RAMP[math.min(steps, floor(position) + 1)]
+	local upper = BAR_COLOR_RAMP[min(steps, floor(position) + 1)]
 	local t = position - floor(position)
 	return lower[1] + (upper[1] - lower[1]) * t, lower[2] + (upper[2] - lower[2]) * t, lower[3] + (upper[3] - lower[3]) * t
 end
@@ -425,7 +432,7 @@ local function drawGameStatePanel()
 	updatePanel()
 
 	local now = os.clock()
-	local ease = math.min(1, (now - lastDrawClock) * PANEL_FILL_SPEED)
+	local ease = min(1, (now - lastDrawClock) * PANEL_FILL_SPEED)
 	lastDrawClock = now
 	local targetFill = {
 		tech = (techLevel - TECH_LEVEL_MIN) / (TECH_LEVEL_MAX - TECH_LEVEL_MIN),
@@ -438,7 +445,7 @@ local function drawGameStatePanel()
 		labs = format("%.1fx / %.1fx", labMultiplier, LAB_MULTIPLIER_MAX),
 	}
 	for key, target in pairs(targetFill) do
-		target = math.max(0, math.min(1, target))
+		target = max(0, min(1, target))
 		shownFill[key] = shownFill[key] + (target - shownFill[key]) * ease
 	end
 
